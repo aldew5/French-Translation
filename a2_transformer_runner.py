@@ -239,7 +239,7 @@ class TransformerRunner:
             self.update_visualization(
                 writer, cur_epoch, loss, zip(n_gram_levels, bleu), log_str
             )
-            print(log_str)
+            #print(log_str)
 
             if bleu[0] < best_bleu:  # use first n-gram level for early stopping
                 num_poor += 1
@@ -349,18 +349,11 @@ class TransformerRunner:
             # [bs * seq_len, v_size] flatten over dimensions except v_size
             logits = logits.reshape(-1, logits.size(-1))
             #print(logits.shape)
-            # Reshape logits from [batch_size, seq_len, vocab_size] to [batch_size * seq_len, vocab_size]
-            logits_flat = logits.view(-1, logits.size(-1))  # Shape: [batch_size * seq_len, vocab_size]
-
-            # Reshape training_target from [batch_size, seq_len] to [batch_size * seq_len]
-            training_target_flat = training_target.view(-1)  # Shape: [batch_size * seq_len]
-
-            #non_pad_mask = targets_flat != padding_idx  # Shape: [batch_size * seq_len]
-            #logits_flat = logits_flat[non_pad_mask]     # Shape: [num_valid_tokens, vocab_size]
-            #targets_flat = targets_flat[non_pad_mask]
-            
+            # [batch_size, seq_len, vocab_size] -> [batch_size * seq_len, vocab_size]
+            logits_flat = logits.view(-1, logits.size(-1))
+            # [batch_size, seq_len] -> [batch_size * seq_len]
+            training_target_flat = training_target.view(-1) 
             loss = criterion(logits_flat, training_target_flat) / accum_iter
-
             
             # 6.
             loss.backward()
@@ -517,6 +510,7 @@ class TransformerRunner:
             #blue scores
             for j, n in enumerate(n_gram_levels):
                 bleu[j] = bleu_score_func(ref_clean, cand_clean, n)
+                #print("LOOP", j, bleu[j])
 
         return tuple(bleu), batch_size
 
@@ -570,4 +564,5 @@ class TransformerRunner:
             for j in range(len(batch_bleu)):
                 total_bleu[j] += batch_bleu[j]
             num += batch_size
+        #print(total_bleu, num)
         return tuple(b / num for b in total_bleu)

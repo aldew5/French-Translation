@@ -844,51 +844,42 @@ class TransformerEncoderDecoder(nn.Module):
                 torch.Tensor, [batch_size * k, 1, src_seq_len], the expanded encoder mask
         """
         # 1)
-        # Step 1: Initialize sequence with the start-of-sequence (SOS) token
         seq = self.initialize_generation_sequence(src, target_sos)  # Shape: [batch_size, 1]
-        #print(f"Initial seq shape: {seq.shape}")
+        src_embed = self.get_src_embeddings(src)                   
+        src_mask = self.create_pad_mask(src)    
+        # [batch_size, src_seq_len, d_model]                    
+        src_x = self.encoder(src_embed, src_mask)               
 
-        src_embed = self.get_src_embeddings(src)                    # Shape: [batch_size, src_seq_len, d_model]
-        src_mask = self.create_pad_mask(src)                        # Shape: [batch_size, 1, src_seq_len]
-        src_x = self.encoder(src_embed, src_mask)                   # Shape: [batch_size, src_seq_len, d_model]
-        #print(f"src_embed shape: {src_embed.shape}, src_mask shape: {src_mask.shape}, src_x shape: {src_x.shape}")
-
-        # Step 2: Run the first step of the decoder to get log probabilities for the first token
-        tgt_mask = self.create_causal_mask(seq)                     # Shape: [1, 1, 1]
-        tgt_embed = self.get_tgt_embeddings(seq)                    # Shape: [batch_size, 1, d_model]
+        # 2)
+        tgt_mask = self.create_causal_mask(seq)                    
+        tgt_embed = self.get_tgt_embeddings(seq)
+        # Shape: [batch_size, 1, vocab_size]               
         log_probs = self.decoder(tgt_embed, tgt_mask, src_x, src_mask, normalize_logits=True)
-                                                                    # Shape: [batch_size, 1, vocab_size]
-        #print(f"log_probs shape before squeeze: {log_probs.shape}")
 
-        # Step 3: Prevent the EOS token from being selected on the first step
+        # 3) no <eos>
         log_probs[:, :, target_eos] = float('-inf')
 
-        # Step 4: Get the top-k predictions (probabilities and indices)
-        log_probs = log_probs.squeeze(1)                            # Shape: [batch_size, vocab_size]
-        #print(f"log_probs shape after squeeze: {log_probs.shape}")
+        # 4)
+        # [batch_size, vocab_size]
+        log_probs = log_probs.squeeze(1)       
+        # [batch_size, k]                   
+        top_probs, top_indices = torch.topk(log_probs, k, dim=-1)   
 
-        top_probs, top_indices = torch.topk(log_probs, k, dim=-1)   # Shape: [batch_size, k]
-        #print(f"top_probs shape: {top_probs.shape}, top_indices shape: {top_indices.shape}")
-
-        # Step 5: Initialize the log probabilities of the sequences
-        batch_size = src.shape[0]
-        top_probs = top_probs.reshape(batch_size * k, 1)            # Shape: [batch_size * k, 1]
-        zero_log_prob = torch.zeros(batch_size * k, 1, device=src.device, dtype=top_probs.dtype)
+        #5)
+        bs = src.shape[0]
+        top_probs = top_probs.reshape(bs*k, 1)            # Shape: [batch_size * k, 1]
+        zero_log_prob = torch.zeros(bs*k, 1, device=src.device, dtype=top_probs.dtype)
         seq_log_probs = torch.cat([zero_log_prob, top_probs], dim=1)  # Shape: [batch_size * k, 2]
-        #print(f"seq_log_probs shape: {seq_log_probs.shape}")
 
-        # Step 6: Create initial beam sequences with the SOS token and the top-k predictions
-        sos_tokens = seq.expand(-1, k).reshape(batch_size * k, 1)   # Shape: [batch_size * k, 1]
-        top_indices = top_indices.reshape(batch_size * k, 1)        # Shape: [batch_size * k, 1]
-        tgt_generation = torch.cat([sos_tokens, top_indices], dim=1)  # Shape: [batch_size * k, 2]
-        #print(f"tgt_generation shape: {tgt_generation.shape}")
+        # 6)
+        sos_tokens = seq.expand(-1, k).reshape(bs*k, 1)  
+        top_indices = top_indices.reshape(bs*k, 1)        
+        # Shape: [batch_size * k, 2]
+        tgt_generation = torch.cat([sos_tokens, top_indices], dim=1)  
 
-        # Step 7: Expand encoder outputs and masks for beam search processing
+        # 7)
         src_x, src_mask = self.expand_encoder_for_beam_search(src_x, src_mask, k)
-                                                                    # Shapes: [batch_size * k, src_seq_len, d_model]
-                                                                    #         [batch_size * k, 1, src_seq_len]
-        #print(f"Expanded src_x shape: {src_x.shape}, Expanded src_mask shape: {src_mask.shape}")
-
+                                                    
         return tgt_generation, seq_log_probs, src_x, src_mask
 
     def score_sequence_for_beam_search(
@@ -1141,7 +1132,7 @@ class TransformerEncoderDecoder(nn.Module):
             Such that each sequence is padded with the padding token after the end of sequence token (if it exists)
         """
 
-        # print('Warning: this is a slow version of beam search and should only be run for debugging.')
+        print('Warning: this is a slow version of beam search and should only be run for debugging.')
         # get the initial first predictions and initialize the beams with them
         batch_size = src.shape[0]  # original batch size
 

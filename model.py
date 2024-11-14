@@ -40,9 +40,10 @@ class LayerNorm(nn.Module):
         # layer norm over feature dimension
         mean = x.mean(dim=-1, keepdim=True)
         var = x.var(dim=-1, keepdim=True, unbiased=False) 
-        
-        # layer norm
+        # normalize
         x_norm = (x - mean) / torch.sqrt(var + self.eps)
+
+        # shift by beta, scale by gamma
         return self.gamma * x_norm + self.beta
 
 
@@ -67,26 +68,26 @@ class MultiHeadAttention(nn.Module):
         store_attention_scores: bool, whether to store the attention scores for visualization
         """
         super(MultiHeadAttention, self).__init__()
-        assert d_model % num_heads == 0
-        # Assume values and keys are the same size
+
+        # head dimension
         self.d_head = d_model // num_heads
         self.num_heads = num_heads
 
-        # Note for students, for self-attention, it is more efficient to treat q, k, and v as one matrix
-        # but this way allows us to use the same attention function for cross-attention
+        # projections for Q, K, V
         self.q_linear = nn.Linear(d_model, d_model)
         self.k_linear = nn.Linear(d_model, d_model)
         self.v_linear = nn.Linear(d_model, d_model)
 
-        self.atten_dropout = nn.Dropout(p=atten_dropout)  # applied after softmax
+        # dropout regularization
+        self.atten_dropout = nn.Dropout(p=atten_dropout) 
 
-        # applied at the end
+        # feedforward
         self.out_linear = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(p=dropout)
 
-        # used for visualization
         self.store_attention_scores = store_attention_scores
-        self.attention_scores = None  # set by set_attention_scores
+        # learned
+        self.attention_scores = None 
 
     def set_attention_scores(self, scores: Tensor) -> None:
         """
@@ -123,21 +124,21 @@ class MultiHeadAttention(nn.Module):
         return torch.Tensor, shape [batch_size, num_heads, query_seq_len, d_head]
         """
         # using attention_score = softmax(QK^T/sqrt(dk))
-        # dimensions: [batch_size, num_heads, query_seq_len, key_seq_len]
+        # [batch_size, num_heads, query_seq_len, key_seq_len]
         attention_scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.d_head)
-        # apply mask if one is given
-        # Apply mask if provided
+        # check for token mask
         if mask is not None:
-            # Expand mask to match attention_scores dimensions
-            mask = mask.unsqueeze(1)  # Shape: [batch_size, 1, query_seq_len, key_seq_len]
-            mask = mask.expand(-1, self.num_heads, -1, -1)  # Shape: [batch_size, num_heads, query_seq_len, key_seq_len]
+            mask = mask.unsqueeze(1) 
+            # [batch_size, num_heads, query_seq_len, key_seq_len]
+            mask = mask.expand(-1, self.num_heads, -1, -1)
             attention_scores = attention_scores.masked_fill(mask, float('-inf'))
-        # Store attention scores before softmax
+
         self.set_attention_scores(attention_scores)
-        # Apply softmax and dropout
+        # [batch_size, num_heads, query_seq_len, key_seq_len]
         attention_weights = self.atten_dropout(torch.softmax(attention_scores, dim=-1))
-        # Compute attention output
+        # [batch_size, num_heads, query_seq_len, d_head]
         out = torch.matmul(attention_weights, value)
+
         return out
 
     def forward(self, query: Tensor, key: Tensor = None, value: Tensor = None, mask: Tensor = None) -> Tensor:
@@ -166,17 +167,17 @@ class MultiHeadAttention(nn.Module):
         key = self.k_linear(key)
         value = self.v_linear(value)
 
-        batch_size = query.size(0)
-        # apply projection and reshape to make splitting into heads easier
-        # new dimensions: [batch_size, query_seq_len, num_heads, d_head]
-        query = query.view(batch_size, -1, self.num_heads, self.d_head).transpose(1, 2)
-        key = key.view(batch_size, -1, self.num_heads, self.d_head).transpose(1, 2)
-        value = value.view(batch_size, -1, self.num_heads, self.d_head).transpose(1, 2)
+        bs = query.size(0)
+        # for Q, K, V: reshape [batch_size, -1, num_heads, d_head] then transpose to [batch_size, num_heads, -1, d_head]
+        query = query.view(bs, -1, self.num_heads, self.d_head).transpose(1, 2)
+        key = key.view(bs, -1, self.num_heads, self.d_head).transpose(1, 2)
+        value = value.view(bs, -1, self.num_heads, self.d_head).transpose(1, 2)
 
+        # [bs, num_heads, query_seq_len, d_head]
         x = self.attention(query, key, value, mask)
-        # Transpose and reshape to concatenate heads
-        x = x.transpose(1, 2).contiguous().view(batch_size, -1, self.num_heads * self.d_head)
-        # Final linear layer and dropout
+        # concat heads [bs, query_seq_len, num_heads * d_head]
+        x = x.transpose(1, 2).contiguous().view(bs, -1, self.num_heads * self.d_head)
+        # x: torch.Tensor, shape [batch_size, query_seq_len, d_model]
         x = self.out_linear(x)
         x = self.dropout(x)
 
@@ -200,13 +201,10 @@ class FeedForwardLayer(nn.Module):
         x: torch.Tensor, shape [batch_size, seq_len, d_model]
         return: torch.Tensor, shape [batch_size, seq_len, d_model]
         """
-        # apply first linear layer
-        # new dimensions: [batch_size, seq_len, d_ff]
+        # batch_size, seq_len, d_ff]
         x = self.dropout1(self.f(self.w_1(x)))
-        # apply second linear layer
-        # new dimensions: [batch_size, seq_len, d_model]
+        # [batch_size, seq_len, d_model]
         x = self.dropout2(self.w_2(x))
-
         return x
 
 
@@ -411,6 +409,7 @@ class TransformerDecoder(nn.Module):
         atten_dropout: float = 0.0,
         is_pre_layer_norm: bool = True,
     ):
+        # make sure to call super for nn
         super(TransformerDecoder, self).__init__()
         self.is_pre_layer_norm = is_pre_layer_norm
         self.layers = torch.nn.ModuleList()
@@ -421,7 +420,8 @@ class TransformerDecoder(nn.Module):
                 )
             )
         self.norm = LayerNorm(d_model)
-        self.proj = nn.Linear(d_model, vocab_size)  # logit projection
+        # for logits
+        self.proj = nn.Linear(d_model, vocab_size)
 
     def forward(self, x: Tensor, mask: Tensor, src_x: Tensor, src_mask: Tensor,
                 normalize_logits: bool = False) -> Tensor:
@@ -437,7 +437,6 @@ class TransformerDecoder(nn.Module):
         Hint: look at the encoder for how pre/post layer norm is handled
         """
         #print(normalize_logits)
-        #print(normalize_logits.shape)
 
         if not self.is_pre_layer_norm:
             x = self.norm(x)
@@ -445,6 +444,8 @@ class TransformerDecoder(nn.Module):
             x = layer(x, mask, src_x, src_mask)
         if self.is_pre_layer_norm:
             x = self.norm(x)
+
+        # check for softmax
         if normalize_logits:
             return torch.log_softmax(self.proj(x), dim=-1)
         else:
@@ -576,8 +577,9 @@ class TransformerEncoderDecoder(nn.Module):
         tokens: torch.Tensor, [batch_size, seq_len]
         return: torch.Tensor, [batch_size, 1, seq_len] where True means to mask, and on the same device as tokens
         """
-        # unsqueeze adds dimension i.e [batch_size, seq_len] -> [batch_size, 1, seq_len]
-        mask =(tokens == self.padding_idx).unsqueeze(1)
+        # [batch_size, seq_len] -> [batch_size, 1, seq_len]
+        # mask padding tokens
+        mask = (tokens == self.padding_idx).unsqueeze(1)
         return mask
 
 
@@ -641,16 +643,17 @@ class TransformerEncoderDecoder(nn.Module):
         normalize_logits: bool, whether to apply log_softmax to the logits
         return: torch.Tensor, [batch_size, tgt_seq_len, tgt_vocab_size] of logits or log probabilities
         """
+        # get embeddings
         tgt_embed = self.get_tgt_embeddings(tgt)
         src_embed = self.get_src_embeddings(src)
 
-        # Create masks
+        # masks
         mask_src = self.create_pad_mask(src)
         casual_tgt = self.create_causal_mask(tgt)
         pad_tgt = self.create_pad_mask(tgt)
         mask_tgt = torch.logical_or(casual_tgt, pad_tgt)
 
-        # Encoder and decoder
+        # encoder-decoder
         encoder_output = self.encoder(src_embed, mask_src)
         decoder_output = self.decoder(tgt_embed, mask_tgt, encoder_output, mask_src, normalize_logits)
         return decoder_output
@@ -844,7 +847,7 @@ class TransformerEncoderDecoder(nn.Module):
                 torch.Tensor, [batch_size * k, 1, src_seq_len], the expanded encoder mask
         """
         # 1)
-        seq = self.initialize_generation_sequence(src, target_sos)  # Shape: [batch_size, 1]
+        seq = self.initialize_generation_sequence(src, target_sos) 
         src_embed = self.get_src_embeddings(src)                   
         src_mask = self.create_pad_mask(src)    
         # [batch_size, src_seq_len, d_model]                    
@@ -867,14 +870,14 @@ class TransformerEncoderDecoder(nn.Module):
 
         #5)
         bs = src.shape[0]
-        top_probs = top_probs.reshape(bs*k, 1)            # Shape: [batch_size * k, 1]
+        top_probs = top_probs.reshape(bs*k, 1)          
         zero_log_prob = torch.zeros(bs*k, 1, device=src.device, dtype=top_probs.dtype)
-        seq_log_probs = torch.cat([zero_log_prob, top_probs], dim=1)  # Shape: [batch_size * k, 2]
+        # [bs * k, 2]
+        seq_log_probs = torch.cat([zero_log_prob, top_probs], dim=1)  
 
         # 6)
         sos_tokens = seq.expand(-1, k).reshape(bs*k, 1)  
         top_indices = top_indices.reshape(bs*k, 1)        
-        # Shape: [batch_size * k, 2]
         tgt_generation = torch.cat([sos_tokens, top_indices], dim=1)  
 
         # 7)
@@ -959,7 +962,7 @@ class TransformerEncoderDecoder(nn.Module):
         is_finished = [False] * batch_size
 
         # use to keep track of which sequence in batch are still being processed
-        cur_sentence_ids = torch.arange(batch_size, device=src.device)  # [batch_size]
+        cur_sentence_ids = torch.arange(batch_size, device=src.device)  
         cur_batch_size = batch_size
 
         # expansion size for each beam, 2 so that we can possibly get k finished sequences and k alive

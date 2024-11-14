@@ -349,9 +349,9 @@ class TransformerRunner:
             # [bs * seq_len, v_size] flatten over dimensions except v_size
             logits = logits.reshape(-1, logits.size(-1))
             #print(logits.shape)
-            # [batch_size, seq_len, vocab_size] -> [batch_size * seq_len, vocab_size]
+            # [bs, seq_len, vocab_size] -> [bs * seq_len, vocab_size]
             logits_flat = logits.view(-1, logits.size(-1))
-            # [batch_size, seq_len] -> [batch_size * seq_len]
+            # [bs, seq_len] -> [bs * seq_len]
             training_target_flat = training_target.view(-1) 
             loss = criterion(logits_flat, training_target_flat) / accum_iter
             
@@ -422,10 +422,7 @@ class TransformerRunner:
             self.dataset.target_eos_id,
             self.padding_idx,
         )
-
-        # === Your Code Here === #
-        # Step 1: Tokenize the input sentence.
-        # Step 2: Convert tokens into ordinal IDs.
+        
         # 1.
         tokens = self.dataset.tokenize(input_sentence)
         
@@ -436,9 +433,8 @@ class TransformerRunner:
             [[self.dataset.source_word2id.get(token, self.dataset.source_unk_id) 
               for token in tokens]], 
             device=self.opts.device)
-        # === ============== === #
 
-        # Step 3. Feed the tokenized sentence into the model.
+        # 3.
         if self.opts.greedy:
             hypotheses = self.model.greedy_decode(source_tokens, sos_idx, eos_idx)
         else:
@@ -446,17 +442,18 @@ class TransformerRunner:
                 source_tokens, sos_idx, eos_idx, k=self.opts.beam_width
             )
 
-        # === Your Code Here === #
-        # Step 4. Decode the output of the sentence into a string.
+     
+        # 4. decode
         output_tokens = []
         for token_id in hypotheses[0]:
             # these tokens should not come up but just in case
             # they should not be outputted
+            # Note: in example they allow <sos> keep this way for now
             if token_id not in [eos_idx, pad_idx, sos_idx]:
                 output_tokens.append(self.dataset.target_id2word[token_id.item()])
-        # separate 
+
+        # sentence
         return " ".join(output_tokens)
-        # === ============== === #
 
     @staticmethod
     def compute_batch_total_bleu(
@@ -493,7 +490,7 @@ class TransformerRunner:
             cand_seq = target_y_cand[i].tolist()
 
             # assert len(ref_seq) == len(cand_seq)
-            # clean both seq
+            # clean both seq 
             ref_clean = []
             for token in ref_seq:
                 if token not in [sos_idx, eos_idx, pad_idx]:

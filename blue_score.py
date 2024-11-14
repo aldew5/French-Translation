@@ -152,6 +152,6 @@ def BLEU_score(reference: Sequence[str], candidate: Sequence[str], n: int) -> fl
     for i in range(1, n + 1):
         p *= n_gram_precision(reference, candidate, i)
 
-    # geometric mean * bp * 100
+    # bp * geometric mean * 100
     bleu = bp * (p ** (1/n)) * 100.0
     return bleu

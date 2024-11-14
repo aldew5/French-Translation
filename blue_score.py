@@ -1,24 +1,3 @@
-""""
-This code is provided solely for the personal and private use of students
-taking the CSC401H/2511H course at the University of Toronto. Copying for
-purposes other than this use is expressly prohibited. All forms of
-distribution of this code, including but not limited to public repositories on
-GitHub, GitLab, Bitbucket, or any other online platform, whether as given or
-with any changes, are expressly prohibited.
-
-Authors: Sean Robertson, Jingcheng Niu, Zining Zhu, and Mohamed Abdall
-Updated by: Arvie Frydenlund, Raeid Saqur and Jingcheng Niu
-
-All of the files in this directory and all subdirectories are:
-Copyright (c) 2024 University of Toronto
-"""
-
-"""
-Calculate BLEU score for one reference and one hypothesis
-
-You do not need to import anything more than what is here
-"""
-
 from math import exp  # exp(x) gives e^x
 from collections.abc import Sequence
 

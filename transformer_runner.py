@@ -1,18 +1,3 @@
-""""
-This code is provided solely for the personal and private use of students
-taking the CSC401H/2511H course at the University of Toronto. Copying for
-purposes other than this use is expressly prohibited. All forms of
-distribution of this code, including but not limited to public repositories on
-GitHub, GitLab, Bitbucket, or any other online platform, whether as given or
-with any changes, are expressly prohibited.
-
-Authors: Arvid Frydenlund <arvie@cs.toronto.edu>
-Updated by: Arvie Frydenlund, Raeid Saqur and Jingcheng Niu
-
-All of the files in this directory and all subdirectories are:
-Copyright (c) 2024 University of Toronto
-"""
-
 import time
 from tqdm import tqdm  # Not required, but you're welcome to use it.
 import argparse
@@ -20,10 +5,10 @@ from typing import Callable, Sequence
 
 import torch
 
-import a2_utils
-import a2_dataloader
-from a2_transformer_model import TransformerEncoderDecoder
-from a2_bleu_score import BLEU_score
+import utils
+import dataloader
+from model import TransformerEncoderDecoder
+from blue_score import BLEU_score
 
 try:
     import wandb

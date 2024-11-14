@@ -1,23 +1,5 @@
 #! /usr/bin/env python3.7
 
-"""
-This code is provided solely for the personal and private use of students
-taking the CSC401H/2511H course at the University of Toronto. Copying for
-purposes other than this use is expressly prohibited. All forms of
-distribution of this code, including but not limited to public repositories on
-GitHub, GitLab, Bitbucket, or any other online platform, whether as given or
-with any changes, are expressly prohibited.
-
-Authors: Sean Robertson, Jingcheng Niu, Zining Zhu, and Mohamed Abdall
-Updated by: Raeid Saqur <raeidsaqur@cs.toronto.edu>, Arvid Frydenlund <arvie@cs.toronto.edu>
-
-All of the files in this directory and all subdirectories are:
-Copyright (c) 2024 University of Toronto
-"""
-
-
-"""All command-line operations in A2"""
-
 import sys
 import argparse
 import random
@@ -26,9 +8,9 @@ import code
 from pathlib import Path
 import torch
 
-import a2_dataloader
-import a2_utils
-from a2_transformer_runner import TransformerRunner
+import dataloader
+import utils
+from transformer_runner import TransformerRunner
 
 
 def build_vocab(opts: argparse.Namespace):
